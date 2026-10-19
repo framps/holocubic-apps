@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ticker 3.0.0 信息</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f2f7fb;
+      --surface: #ffffff;
+      --ink: #111827;
+      --muted: #64748b;
+      --line: rgba(15, 23, 42, .12);
+      --blue: #0a84ff;
+      --blue-soft: #eef6ff;
+      --green: #16a34a;
+      --green-soft: #e9f8ef;
+      --amber: #b86b16;
+      --amber-soft: #fff4df;
+      --red: #d54d3f;
+      --red-soft: #fff0ed;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #fbfdff 0%, var(--bg) 100%);
+      color: var(--ink);
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    .page {
+      width: min(100%, 820px);
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .top {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .92);
+      box-shadow: 0 14px 30px rgba(15, 23, 42, .08);
+    }
+
+    .icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, .14);
+    }
+
+    .kicker {
+      margin: 0 0 3px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 31px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .summary {
+      margin: 8px 0 0;
+      color: var(--muted);
+    }
+
+    .lang-toggle {
+      min-width: 54px;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid rgba(10, 132, 255, .24);
+      border-radius: 8px;
+      background: var(--blue-soft);
+      color: #075aa9;
+      cursor: pointer;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      touch-action: manipulation;
+    }
+
+    .lang-toggle:focus-visible {
+      outline: 3px solid rgba(10, 132, 255, .18);
+      outline-offset: 2px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(240px, .9fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .panel {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .88);
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .chips {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      min-height: 34px;
+      padding: 0 9px;
+      border-radius: 8px;
+      border: 1px solid rgba(15, 23, 42, .1);
+      background: rgba(255, 255, 255, .82);
+      color: #475569;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .chip-logo {
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+      border: 1px solid rgba(15, 23, 42, .12);
+      border-radius: 7px;
+      background: #f8fafc;
+      object-fit: contain;
+      display: block;
+    }
+
+    .chip-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .list {
+      display: grid;
+      gap: 9px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .list li {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 9px;
+      align-items: start;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .badge {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 850;
+    }
+
+    .list strong {
+      display: block;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .source-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .source {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .source span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .source strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+    }
+
+    .meta-item {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .value {
+      display: block;
+      margin-top: 2px;
+      font-size: 16px;
+      font-weight: 850;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+    .note {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .opensource {
+      margin: 12px 2px 0;
+      color: #8792a3;
+      font-size: 11px;
+      line-height: 1.45;
+      text-align: center;
+    }
+
+    .opensource a {
+      color: inherit;
+      font-weight: 700;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    .opensource a:focus-visible {
+      outline: 2px solid rgba(37, 99, 235, .32);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    @media (max-width: 660px) {
+      .page { padding: 12px; }
+      .top {
+        grid-template-columns: 56px minmax(0, 1fr) auto;
+        padding: 12px;
+      }
+      .icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+      }
+      h1 { font-size: 28px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 380px) {
+      .top { grid-template-columns: 48px minmax(0, 1fr); }
+      .icon {
+        width: 48px;
+        height: 48px;
+      }
+      .lang-toggle {
+        grid-column: 1 / -1;
+        justify-self: end;
+      }
+    }
+  </style>
+<style>body{visibility:hidden}</style><script>
+// Embedded in single-file app descriptions. Never writes device settings.
+window.CubicInfoLanguage = (function () {
+  function normalize(value) {
+    var v = String(value || "").replace(/_/g, "-").toLowerCase();
+    if (/^de(?:-|$)/.test(v)) return "de";
+    if (/^ja(?:-|$)/.test(v)) return "ja";
+    if (/^zh-(?:tw|hk|mo|hant)(?:-|$)/.test(v)) return "zh-TW";
+    if (/^zh(?:-|$)/.test(v)) return "zh-CN";
+    return "en";
+  }
+  var requested = "", stored = "", listeners = [];
+  try { var q = new URLSearchParams(location.search); requested = q.get("lang") || q.get("language") || ""; } catch (_) {}
+  try { stored = localStorage.getItem("cubic.mainpage.language") || ""; } catch (_) {}
+  var current = normalize(requested || stored || navigator.language);
+  function publish(value) { current = normalize(value); listeners.forEach(function (fn) { fn(current); }); }
+  if (!requested) {
+    fetch("/api/system/fs/file?path=%2Fsd%2Fapps%2Fsettings.json", {cache:"no-store"})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (s) { if (s && (s.language || s.locale || s.lang)) publish(s.language || s.locale || s.lang); })
+      .catch(function () {});
+  }
+  return { normalize:normalize, subscribe:function (fn) { listeners.push(fn); fn(current); } };
+}());
+
+document.addEventListener("DOMContentLoaded",function(){document.body.style.visibility="visible"});
+</script>
+</head>
+<body>
+  <main class="page">
+    <section class="top" aria-labelledby="title">
+      <img src="data:image/png;base64,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" class="icon" width="64" height="64" alt="Ticker 应用图标" data-i18n-alt="iconAlt">
+      <div>
+        <p class="kicker" data-i18n="kicker">多市场行情工具</p>
+        <h1 id="title">Ticker</h1>
+        <p class="summary" data-i18n="summary">搜索 A 股、港股、美股和台股，查看币价、指数、金银铜及货币汇率；目录与个人设置保存在 SD 卡。</p>
+      </div>
+      <button class="lang-toggle" type="button" data-lang-toggle aria-label="Switch to English">EN</button>
+    </section>
+
+    <div class="grid">
+      <section class="panel" aria-labelledby="support-title">
+        <h2 id="support-title" data-i18n="supportTitle">支持市场</h2>
+        <div class="chips" id="supported-assets" aria-label="支持市场 / Supported markets"></div>
+        <p class="note" data-i18n="customNote">在 Web 控制页按需下载股票与货币目录，再按名称或代码搜索。保留自定义来源与代码设置，点击结果后才切换设备显示。</p>
+      </section>
+
+      <section class="panel" aria-labelledby="source-title">
+        <h2 id="source-title" data-i18n="sourceTitle">信息来源</h2>
+        <div class="source-grid">
+          <div class="source">
+            <span data-i18n="binanceLabel">币价与 K 线</span>
+            <strong>Binance public market data</strong>
+          </div>
+          <div class="source">
+            <span data-i18n="eastmoneyLabel">股票目录、股票/指数/金属行情与历史图表</span>
+            <strong>Eastmoney public market data</strong>
+          </div>
+          <div class="source">
+            <span data-i18n="fxLabel">货币目录与每日参考汇率</span>
+            <strong>Frankfurter history + Open ER-API</strong>
+          </div>
+          <div class="source">
+            <span data-i18n="backupMarketLabel">兼容自定义证券来源</span>
+            <strong>Yahoo Finance</strong>
+          </div>
+          <div class="source">
+            <span data-i18n="backupFxLabel">离线换算参考值</span>
+            <strong data-i18n="backupFxValue">USD/CNY、USD/TWD 与 USD/HKD</strong>
+          </div>
+        </div>
+        <p class="note" data-i18n="sourceNote">台股实时报价来自 TWSE MIS。Frankfurter 提供货币目录与每日历史汇率；Open ER-API 提供行情币种换算。离线参考值不代表实时汇率。</p>
+        <p class="note" data-i18n="riskNote">行情用于显示和观察，不构成投资建议；网络或公开接口异常时数据可能延迟。</p>
+      </section>
+
+      <section class="panel" aria-labelledby="feature-title">
+        <h2 id="feature-title" data-i18n="featureTitle">3.0.0 更新说明</h2>
+        <ul class="list">
+          <li>
+            <span class="badge">1</span>
+            <span><strong data-i18n="featureOneTitle">港股与多市场搜索</strong><span data-i18n="featureOneText">新增港股、五位证券代码及 HKD 显示；按名称或代码搜索，选择结果后显示行情。</span></span>
+          </li>
+          <li>
+            <span class="badge">2</span>
+            <span><strong data-i18n="featureTwoTitle">目录按需下载</strong><span data-i18n="featureTwoText">A 股、美股、台股、港股及货币目录下载至 SD 卡，不随应用预装；支持手动更新，下载失败保留上次完整目录。</span></span>
+          </li>
+          <li>
+            <span class="badge">3</span>
+            <span><strong data-i18n="featureThreeTitle">全新 Web 控制页</strong><span data-i18n="featureThreeText">行情图表、市场搜索、自定义标的和目录管理清晰分区；浏览市场和编辑输入不会自动切换设备。</span></span>
+          </li>
+          <li>
+            <span class="badge">4</span>
+            <span><strong data-i18n="featureFourTitle">恢复上次选择</strong><span data-i18n="featureFourText">持久保存当前标的、5m/1h/1d/1w 周期、图表、均线、币种、重力开关及多个自定义标的。</span></span>
+          </li>
+          <li><span class="badge">5</span><span><strong data-i18n="featureFiveTitle">图表与请求改进</strong><span data-i18n="featureFiveText">修正 Binance 时间戳精度；支持折线、K 线、MA10/MA20 和 USD/CNY/TWD/HKD。补充底层超时参数、失败退避和请求占用保护。</span></span></li>
+          <li><span class="badge">6</span><span><strong data-i18n="featureSixTitle">升级保留数据</strong><span data-i18n="featureSixText">升级时保留 settings.json、settings.json.bak 与 catalog 目录，并刷新 Web 页面。开机自动启动应用由固件设置决定。</span></span></li>
+        </ul>
+      </section>
+      <section class="panel" aria-labelledby="app-info-title">
+        <h2 id="app-info-title" data-i18n="appInfoTitle">应用信息</h2>
+        <div class="meta">
+          <div class="meta-item">
+            <span class="label" data-i18n="sizeLabel">应用文件大小</span>
+            <span class="value" data-i18n="sizeValue">约 957 KiB，不含目录缓存</span>
+          </div>
+          <div class="meta-item">
+            <span class="label" data-i18n="versionLabel">版本号</span>
+            <span class="value">3.0.0</span>
+          </div>
+        </div>
+      </section>    </div>
+
+    <footer class="opensource">
+      <span data-i18n="licenseText">开源协议：GPL-3.0</span>
+      <span> · </span>
+      <span data-i18n="repoLabel">项目：</span><a href="https://github.com/clocteck/holocubic-apps/tree/main/BTC" target="_blank" rel="noopener">clocteck/holocubic-apps · BTC</a>
+    </footer>
+  </main>
+
+  <script>
+    (function () {
+      var messages = {
+  "zh": {
+    "title": "Ticker 3.0.0 信息",
+    "toggleLabel": "Switch to English",
+    "toggleText": "EN",
+    "iconAlt": "Ticker 应用图标",
+    "kicker": "多市场行情工具",
+    "summary": "搜索 A 股、港股、美股和台股，查看币价、指数、金银铜及货币汇率；目录与个人设置保存在 SD 卡。",
+    "supportTitle": "支持市场",
+    "customNote": "在 Web 控制页按需下载股票与货币目录，再按名称或代码搜索。保留自定义来源与代码设置，点击结果后才切换设备显示。",
+    "sourceTitle": "信息来源",
+    "binanceLabel": "币价与 K 线",
+    "eastmoneyLabel": "股票目录、股票/指数/金属行情与历史图表",
+    "fxLabel": "货币目录与每日参考汇率",
+    "backupMarketLabel": "兼容自定义证券来源",
+    "backupFxLabel": "离线换算参考值",
+    "backupFxValue": "USD/CNY、USD/TWD 与 USD/HKD",
+    "sourceNote": "台股实时报价来自 TWSE MIS。Frankfurter 提供货币目录与每日历史汇率；Open ER-API 提供行情币种换算。离线参考值不代表实时汇率。",
+    "riskNote": "行情用于显示和观察，不构成投资建议；网络或公开接口异常时数据可能延迟。",
+    "featureTitle": "3.0.0 更新说明",
+    "featureOneTitle": "港股与多市场搜索",
+    "featureOneText": "新增港股、五位证券代码及 HKD 显示；按名称或代码搜索，选择结果后显示行情。",
+    "featureTwoTitle": "目录按需下载",
+    "featureTwoText": "A 股、美股、台股、港股及货币目录下载至 SD 卡，不随应用预装；支持手动更新，下载失败保留上次完整目录。",
+    "featureThreeTitle": "全新 Web 控制页",
+    "featureThreeText": "行情图表、市场搜索、自定义标的和目录管理清晰分区；浏览市场和编辑输入不会自动切换设备。",
+    "featureFourTitle": "恢复上次选择",
+    "featureFourText": "持久保存当前标的、5m/1h/1d/1w 周期、图表、均线、币种、重力开关及多个自定义标的。",
+    "featureFiveTitle": "图表与请求改进",
+    "featureFiveText": "修正 Binance 时间戳精度；支持折线、K 线、MA10/MA20 和 USD/CNY/TWD/HKD。补充底层超时参数、失败退避和请求占用保护。",
+    "featureSixTitle": "升级保留数据",
+    "featureSixText": "升级时保留 settings.json、settings.json.bak 与 catalog 目录，并刷新 Web 页面。开机自动启动应用由固件设置决定。",
+    "appInfoTitle": "应用信息",
+    "sizeLabel": "应用文件大小",
+    "sizeValue": "约 957 KiB，不含目录缓存",
+    "versionLabel": "版本号",
+    "licenseText": "开源协议：GPL-3.0",
+    "repoLabel": "项目："
+  },
+  "en": {
+    "title": "Ticker 3.0.0 Info",
+    "toggleLabel": "Switch to Chinese",
+    "toggleText": "Chinese",
+    "iconAlt": "Ticker app icon",
+    "kicker": "Multi-market quote tool",
+    "summary": "Search A-shares, Hong Kong, US and Taiwan stocks, and track crypto, indexes, metals and FX. Directories and personal settings stay on the SD card.",
+    "supportTitle": "Supported markets",
+    "customNote": "Download stock and currency directories on demand, then search by name or symbol. Custom sources and symbols remain available. Only selecting a result changes the device display.",
+    "sourceTitle": "Data sources",
+    "binanceLabel": "Crypto quotes and candles",
+    "eastmoneyLabel": "Stock directories, stock/index/metal quotes and history",
+    "fxLabel": "Currency directory and daily reference rates",
+    "backupMarketLabel": "Compatible custom securities source",
+    "backupFxLabel": "Offline conversion reference rates",
+    "backupFxValue": "USD/CNY, USD/TWD and USD/HKD",
+    "sourceNote": "TWSE MIS supplies Taiwan live quotes. Frankfurter supplies currencies and daily FX history; Open ER-API supplies quote-currency conversion. Offline reference rates are not live rates.",
+    "riskNote": "Quotes are for display and observation, not financial advice. Data may be delayed when networks or public APIs fail.",
+    "featureTitle": "What is new in 3.0.0",
+    "featureOneTitle": "Hong Kong and multi-market search",
+    "featureOneText": "Adds Hong Kong stocks, five-digit symbols and HKD display. Search by name or symbol, then select a result to show its quote.",
+    "featureTwoTitle": "Directories on demand",
+    "featureTwoText": "Download A-share, US, Taiwan, Hong Kong and currency directories to SD. Caches are not bundled. Update manually; failed downloads preserve the previous complete directory.",
+    "featureThreeTitle": "Redesigned Web console",
+    "featureThreeText": "Dedicated areas for charts, market search, custom instruments and directories. Browsing markets or editing inputs does not switch the device automatically.",
+    "featureFourTitle": "Restore your last selection",
+    "featureFourText": "Persists the selected instrument, 5m/1h/1d/1w interval, chart mode, moving average, currency, tilt setting and multiple custom instruments.",
+    "featureFiveTitle": "Chart and request improvements",
+    "featureFiveText": "Fixes Binance timestamp precision. Supports line/candlestick charts, MA10/MA20 and USD/CNY/TWD/HKD. Adds native timeout options, retry backoff and request ownership protection.",
+    "featureSixTitle": "Keep your data when upgrading",
+    "featureSixText": "Preserve settings.json, settings.json.bak and the catalog directory, then refresh the Web page. Automatic app launch at boot depends on firmware settings.",
+    "appInfoTitle": "App information",
+    "sizeLabel": "App files size",
+    "sizeValue": "About 957 KiB, excluding directory caches",
+    "versionLabel": "Version",
+    "licenseText": "Open source license: GPL-3.0",
+    "repoLabel": "Project: "
+  }
+};
+
+      function createLogoImage(text) {
+        var canvas = document.createElement("canvas");
+        var ctx = canvas.getContext && canvas.getContext("2d");
+
+        canvas.width = 44;
+        canvas.height = 44;
+
+        if (!ctx) {
+          return "";
+        }
+
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(0, 0, 44, 44);
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, 42, 42);
+        ctx.fillStyle = "#64748b";
+        ctx.font = "800 " + (text.length > 1 ? "15px" : "20px") + " -apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, 22, 23);
+
+        try {
+          return canvas.toDataURL("image/png");
+        } catch (err) {
+          return "";
+        }
+      }
+
+      var supportedAssets = [{"logoText": "FX", "zh": "货币汇率", "en": "FX"}, {"logoText": "BTC", "zh": "加密货币", "en": "Crypto"}, {"logoText": "CN", "zh": "A 股", "en": "A-shares"}, {"logoText": "HK", "zh": "港股", "en": "Hong Kong"}, {"logoText": "US", "zh": "美股", "en": "US stocks"}, {"logoText": "TW", "zh": "台股", "en": "Taiwan"}, {"logoText": "IDX", "zh": "指数", "en": "Indexes"}, {"logoText": "Au", "zh": "金银铜", "en": "Metals"}];
+      supportedAssets.forEach(function(item) { item.logo = createLogoImage(item.logoText); });
+
+      var toggle = document.querySelector("[data-lang-toggle]");
+      var lang = "en";
+
+      try {
+        lang = "en";
+      } catch (err) {
+        lang = "zh";
+      }
+
+      if (!messages[lang]) {
+        lang = "zh";
+      }
+
+      function renderSupportedAssets() {
+        var wrap = document.getElementById("supported-assets");
+        if (!wrap) {
+          return;
+        }
+        wrap.textContent = "";
+
+        supportedAssets.forEach(function (item) {
+          var chip = document.createElement("span");
+          var logo = document.createElement("img");
+          var label = document.createElement("span");
+
+          chip.className = "chip";
+          logo.className = "chip-logo";
+          logo.src = item.logo;
+          logo.width = 22;
+          logo.height = 22;
+          logo.alt = "";
+          logo.setAttribute("aria-hidden", "true");
+          label.className = "chip-label";
+          label.textContent = item[lang] || item.en;
+
+          chip.appendChild(logo);
+          chip.appendChild(label);
+          wrap.appendChild(chip);
+        });
+      }
+
+      function applyLang(nextLang) {
+        var dict = messages[nextLang];
+        document.documentElement.lang = nextLang === "zh" ? "zh-CN" : "en";
+        document.title = dict.title;
+
+        document.querySelectorAll("[data-i18n]").forEach(function (node) {
+          var key = node.getAttribute("data-i18n");
+          if (dict[key]) {
+            node.textContent = dict[key];
+          }
+        });
+
+        document.querySelectorAll("[data-i18n-alt]").forEach(function (node) {
+          var key = node.getAttribute("data-i18n-alt");
+          if (dict[key]) {
+            node.setAttribute("alt", dict[key]);
+          }
+        });
+
+        toggle.textContent = dict.toggleText;
+        toggle.setAttribute("aria-label", dict.toggleLabel);
+        lang = nextLang;
+        renderSupportedAssets();
+
+        try {
+          localStorage.setItem("ticker.info.lang", lang);
+        } catch (err) {}
+      }
+
+      toggle.addEventListener("click", function () {
+        applyLang(lang === "zh" ? "en" : "zh");
+      });
+
+      applyLang(lang);
+      window.CubicInfoLanguage.subscribe(function(value){applyLang(value.indexOf("zh")===0?"zh":"en")});
+    }());
+  </script>
+</body>
+</html>
