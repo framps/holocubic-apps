@@ -10,7 +10,7 @@ local Storage = load_module("storage")
 local Catalog = load_module("catalog")
 local Backend = load_module("backend")
 local app_obj = {
-  VERSION = "3.3.0",
+  VERSION = "3.5.4",
   APP_ID = "btc",
   APP_DIR = APP_DIR,
   route_base = (app and app.route_base and app.route_base()) or "/btc",
@@ -52,6 +52,8 @@ app_obj.input = {
   controller_buttons = 0,
   repeat_left = 0,
   repeat_right = 0,
+  repeat_up = 0,
+  repeat_down = 0,
 }
 
 local function wrap_index(index, count)
@@ -294,16 +296,31 @@ local function handle_tilt_key(delta, side, evt_type)
   refresh_view()
 end
 
+local last_interval_step = nil
+local function handle_interval_key(delta, side, evt_type)
+  if app_obj.input.menu_open then return end
+  if evt_type ~= KEY_START and evt_type ~= KEY_SHORT and evt_type ~= KEY_LONG_START then return end
+  -- genau ein Schritt pro Neigung: Folge-Ereignisse (START+SHORT+LONG...) innerhalb 800 ms ignorieren
+  if tmr and tmr.now then
+    local ok, now = pcall(function() return tmr.now() end)
+    if ok and now then
+      if last_interval_step then
+        local diff = (now - last_interval_step) % 2147483648
+        if diff < 800000 then last_interval_step = now; return end
+      end
+      last_interval_step = now
+    end
+  end
+  app_obj.backend:select_interval_delta(delta)
+  refresh_view()
+end
+
 local function bind_keys()
   if not KEYMOD or not KEYMOD.on then return end
   KEYMOD.on(KEYMOD.LEFT, function(evt_type) handle_tilt_key(-1, "repeat_left", evt_type) end)
   KEYMOD.on(KEYMOD.RIGHT, function(evt_type) handle_tilt_key(1, "repeat_right", evt_type) end)
-  KEYMOD.on(KEYMOD.UP, function(evt_type)
-    if evt_type == KEY_SHORT and not app_obj.input.menu_open then app_obj.backend:select_interval_delta(-1); refresh_view() end
-  end)
-  KEYMOD.on(KEYMOD.DOWN, function(evt_type)
-    if evt_type == KEY_SHORT and not app_obj.input.menu_open then app_obj.backend:select_interval_delta(1); refresh_view() end
-  end)
+  KEYMOD.on(KEYMOD.UP, function(evt_type) handle_interval_key(1, "repeat_up", evt_type) end)
+  KEYMOD.on(KEYMOD.DOWN, function(evt_type) handle_interval_key(-1, "repeat_down", evt_type) end)
 end
 
 function app_obj.stop(reason)

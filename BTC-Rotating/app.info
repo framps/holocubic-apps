@@ -16,6 +16,6 @@ description_zh_tw = 支援港股等多市場行情、SD 目錄搜尋與設定保
 description_zh_hant = 支援港股等多市場行情、SD 目錄搜尋與設定保存
 description_en = Searchable multi-market quotes with SD directories and saved settings
 description_ja = 香港株などの相場、SDカードの銘柄検索、設定の保存に対応
-version = 3.3.0
+version = 3.5.4
 name_de = Börsenticker
 description_de = Kurse verschiedener Märkte, lokale Verzeichnisse und gespeicherte Einstellungen.

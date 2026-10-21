@@ -763,7 +763,7 @@ function Ui.new(backend, i18n)
     if last_draw_error ~= "" then
       set_text(self.footer_right, "ERR " .. tostring(last_draw_error):sub(1, 18))
     else
-      set_text(self.footer_right, tostring(snap.settings.interval or "--") .. "  " .. tostring(snap.next_fetch_in_s or 0) .. "s")
+      set_text(self.footer_right, tostring(snap.settings.interval_text or snap.settings.interval or "--") .. "  " .. tostring(snap.next_fetch_in_s or 0) .. "s")
     end
   end
 

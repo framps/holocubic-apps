@@ -42,11 +42,25 @@ local function yahoo_quote_for(symbol)
   return suffix and YAHOO_SUFFIX_CURRENCY[suffix] or "USD"
 end
 
+-- Scale steps are RANGES: last day / week / month / 3 months / year.  The candle size is
+-- chosen per range; Eastmoney, Yahoo and Binance each get their own request settings.
+--   fetch_limit   : max candles requested from Eastmoney (lmt) and kept when parsing
+--   limit_binance : max candles requested from Binance
+--   em_days       : how many calendar days back Eastmoney history starts
+--   keep_hours    : intraday ranges only - keep Eastmoney candles from the last N hours (12 = latest session)
+--   display_limit : max points drawn / sent to the web page (default DEFAULT_LIMIT)
+--   fx_days/label : the range for currency pairs (no intraday data there, so no "1D")
 local INTERVALS = {
-  { label = "5m", api_binance = "5m", api_yahoo = "5m", range_yahoo = "5d", klt_em = "5", em_span = "month", fx_days = 7, fx_label = "7D" },
-  { label = "1h", api_binance = "1h", api_yahoo = "60m", range_yahoo = "1mo", klt_em = "60", em_span = "year", fx_days = 30, fx_label = "30D" },
-  { label = "1day", api_binance = "1d", api_yahoo = "1d", range_yahoo = "6mo", klt_em = "101", em_span = "prev_year", fx_days = 90, fx_label = "90D" },
-  { label = "7day", api_binance = "1w", api_yahoo = "1wk", range_yahoo = "5y", klt_em = "102", em_span = "three_year", fx_days = 365, fx_label = "1Y" },
+  { label = "1d", api_binance = "30m", limit_binance = 48, api_yahoo = "15m", range_yahoo = "1d",
+    klt_em = "15", em_days = 7, keep_hours = 12, fetch_limit = 96 },
+  { label = "1w", api_binance = "4h", limit_binance = 42, api_yahoo = "60m", range_yahoo = "5d",
+    klt_em = "60", em_days = 10, keep_hours = 168, fetch_limit = 120, fx_days = 7, fx_label = "7D" },
+  { label = "1mo", api_binance = "1d", limit_binance = 31, api_yahoo = "1d", range_yahoo = "1mo",
+    klt_em = "101", em_days = 31, fetch_limit = 64, fx_days = 30, fx_label = "30D" },
+  { label = "3mo", api_binance = "1d", limit_binance = 92, api_yahoo = "1d", range_yahoo = "3mo",
+    klt_em = "101", em_days = 92, fetch_limit = 96, display_limit = 96, fx_days = 90, fx_label = "90D" },
+  { label = "1y", api_binance = "1w", limit_binance = 53, api_yahoo = "1wk", range_yahoo = "1y",
+    klt_em = "102", em_days = 366, fetch_limit = 64, fx_days = 365, fx_label = "1Y" },
 }
 
 -- 设备端菜单与 Web 使用同一组常用汇率币种。
@@ -274,6 +288,9 @@ end
 local function eastmoney_begin(interval)
   local year, month = local_date_parts()
   local span = interval and interval.em_span or "year"
+  if interval and interval.em_days then
+    return (date_days_ago(interval.em_days):gsub("-", ""))
+  end
   if span == "month" then
     return string.format("%04d%02d01", year, month)
   elseif span == "prev_year" then
@@ -355,9 +372,13 @@ local function fmt_pct(value)
 end
 
 -- 找到周期配置。
+-- Short on-screen names for the scale steps.
+local INTERVAL_SHORT = { ["1d"] = "1D", ["1w"] = "1W", ["1mo"] = "1M", ["3mo"] = "3M", ["1y"] = "1Y" }
+
 local function find_interval(label)
   label = tostring(label or ""):lower()
-  label = ({["1d"]="1day", ["1w"]="7day", ["1wk"]="7day"})[label] or label
+  -- Older versions saved candle-size names; map them to the closest range.
+  label = ({["5m"]="1d", ["1h"]="1w", ["1day"]="3mo", ["7day"]="1y", ["1wk"]="1w", ["1month"]="1mo", ["3month"]="3mo", ["1year"]="1y"})[label] or label
   for i = 1, #INTERVALS do
     if INTERVALS[i].label == label then
       return INTERVALS[i], i
@@ -904,13 +925,22 @@ local function parse_yahoo(doc, asset)
       local open_p = tonumber(opens[i]) or close_p
       local high_p = tonumber(highs[i]) or math.max(open_p, close_p)
       local low_p = tonumber(lows[i]) or math.min(open_p, close_p)
-      candles[#candles + 1] = {
-        time = (tonumber(ts[i]) or 0) * 1000,
+      -- Keep Unix SECONDS: the device uses 32-bit integers, so seconds * 1000
+      -- wrapped around and scrambled the chart's X axis (several curves, flat lines).
+      local candle = {
+        time = tonumber(ts[i]) or 0,
         open = open_p,
         high = high_p,
         low = low_p,
         close = close_p,
       }
+      local previous = candles[#candles]
+      if previous and candle.time <= previous.time then
+        -- Yahoo's weekly data can repeat the current week: keep only the newest row.
+        candles[#candles] = candle
+      else
+        candles[#candles + 1] = candle
+      end
     end
   end
 
@@ -934,7 +964,8 @@ local function parse_yahoo(doc, asset)
 end
 
 -- 解析东方财富 K 线，覆盖 A 股个股和指数。
-local function parse_eastmoney(doc, asset)
+local function parse_eastmoney(doc, asset, interval)
+  local limit = interval and interval.fetch_limit or DEFAULT_LIMIT
   if type(doc) == "string" then
     local block = doc:match('"klines"%s*:%s*%[(.-)%]')
     if not block then
@@ -949,7 +980,7 @@ local function parse_eastmoney(doc, asset)
       -- 先丢弃这些占位行，否则最后 64 点几乎全是水平线。
       if asset.group ~= "taiwan" or volume > 0 then
         lines[#lines + 1] = line
-        if #lines > DEFAULT_LIMIT then
+        if #lines > limit then
           table.remove(lines, 1)
         end
       end
@@ -1143,7 +1174,7 @@ local function build_url(asset, interval)
     return "https://data-api.binance.vision/api/v3/klines?symbol="
       .. url_encode(asset.symbol)
       .. "&interval=" .. interval.api_binance
-      .. "&limit=" .. tostring(DEFAULT_LIMIT)
+      .. "&limit=" .. tostring(interval.limit_binance or DEFAULT_LIMIT)
   elseif asset.source == "yahoo" then
     return "https://query2.finance.yahoo.com/v8/finance/chart/"
       .. url_encode(asset.symbol)
@@ -1156,7 +1187,7 @@ local function build_url(asset, interval)
       .. "&fields1=f1,f2,f3,f4,f5,f6"
       .. "&fields2=f51,f52,f53,f54,f55,f56,f57,f58"
       .. "&klt=" .. interval.klt_em
-      .. "&fqt=1&beg=" .. eastmoney_begin(interval) .. "&end=20500101&lmt=" .. tostring(DEFAULT_LIMIT)
+      .. "&fqt=1&beg=" .. eastmoney_begin(interval) .. "&end=20500101&lmt=" .. tostring(interval.fetch_limit or DEFAULT_LIMIT)
   elseif asset.source == "fx" then
     local base = normalize_currency_code(asset.base)
     local quote = normalize_currency_code(asset.quote)
@@ -1172,14 +1203,29 @@ local function build_url(asset, interval)
   return nil, "source unsupported"
 end
 
+-- Intraday ranges: Eastmoney returns the last N candles regardless of day.  Keep only the
+-- last `hours` hours (timestamps may be Beijing time, so a US session crosses midnight; sessions
+-- of all markets are < 9h long and at least 15h apart, so 12h isolates the latest session).
+local function keep_recent_hours(candles, hours)
+  local last = candles[#candles]
+  local last_t = last and chart_time_value(tostring(last.time or ""))
+  if not last_t then return candles end
+  local out = {}
+  for _, c in ipairs(candles) do
+    local t = chart_time_value(tostring(c.time or ""))
+    if t and t >= last_t - hours * 3600 then out[#out + 1] = c end
+  end
+  return out
+end
+
 -- 按来源选择解析器。
-local function parse_by_source(asset, doc)
+local function parse_by_source(asset, doc, interval)
   if asset.source == "binance" then
     return parse_binance(doc, asset)
   elseif asset.source == "yahoo" then
     return parse_yahoo(doc, asset)
   elseif asset.source == "eastmoney" then
-    return parse_eastmoney(doc, asset)
+    return parse_eastmoney(doc, asset, interval)
   elseif asset.source == "fx" then
     return parse_fx_pair(doc, asset)
   end
@@ -1432,7 +1478,7 @@ function Backend.new(opts)
     intervals = INTERVALS,
     settings = {
       asset_id = "crypto:BTCUSDT",
-      interval = "5m",
+      interval = "1d",
       mode = "line",
       currency = "USD",
       ma_period = 0,
@@ -1518,6 +1564,7 @@ function Backend.new(opts)
       custom_assets = self.custom_assets,
       stock_mode = self.settings.stock_mode,
       stock_ma_period = self.settings.stock_ma_period,
+      stock_interval = self.settings.stock_interval,
       rotation_enabled = self.settings.rotation_enabled,
       rotation_seconds = self.settings.rotation_seconds,
       rotation_ids = self.settings.rotation_ids,
@@ -1548,6 +1595,7 @@ function Backend.new(opts)
     cfg.asset_id = migrated[tostring(cfg.asset_id or cfg.asset)] or cfg.asset_id or cfg.asset
     self.settings.stock_mode = normalize_mode(cfg.stock_mode) or "line"
     self.settings.stock_ma_period = normalize_ma_period(cfg.stock_ma_period) or 0
+    self.settings.stock_interval = cfg.stock_interval and find_interval(cfg.stock_interval).label or nil
 
     local asset_id = cfg.asset_id or cfg.asset
     if asset_id and self:find_asset(asset_id) then
@@ -1719,12 +1767,12 @@ function Backend.new(opts)
   -- 将 TWSE 实时快照合并到图表。5m/1h 使用运行期间采样合成，
   -- 日线及周线保留历史 K 线，并追加/更新当天实时 OHLC。
   function self:merge_taiwan_quote(asset, interval, historical, quote)
-    local label = interval and interval.label or "5m"
+    local label = interval and interval.label or "1d"
     local candles = {}
     local date_text = quote.date:sub(1, 4) .. "-" .. quote.date:sub(5, 6) .. "-" .. quote.date:sub(7, 8)
 
-    if label == "5m" or label == "1h" then
-      local period_min = label == "1h" and 60 or 5
+    if label == "1d" or label == "1w" then
+      local period_min = label == "1w" and 60 or 15
       local hour, minute = tostring(quote.time or ""):match("^(%d%d):(%d%d)")
       hour = tonumber(hour) or 0
       minute = tonumber(minute) or 0
@@ -1786,7 +1834,7 @@ function Backend.new(opts)
       }
       local last = candles[#candles]
       local merge_last = last and tostring(last.time or ""):sub(1, 10) == date_text
-      if label == "7day" and last then
+      if label == "1y" and last then
         local function civil_days(text)
           local y, m, d = tostring(text or ""):match("^(%d%d%d%d)%-(%d%d)%-(%d%d)")
           y, m, d = tonumber(y), tonumber(m), tonumber(d)
@@ -1808,7 +1856,7 @@ function Backend.new(opts)
         end
       end
       if merge_last then
-        if label == "7day" then
+        if label == "1y" then
           last.time = date_text
           last.high = math.max(tonumber(last.high) or quote.high, quote.high)
           last.low = math.min(tonumber(last.low) or quote.low, quote.low)
@@ -1975,11 +2023,23 @@ function Backend.new(opts)
       local history_error = nil
       if ok then
         local perr = nil
-        parsed, perr = parse_by_source(asset, doc)
+        parsed, perr = parse_by_source(asset, doc, interval)
         if not parsed then
           history_error = "parse " .. tostring(perr)
-        elseif asset.source == "yahoo" then
-          self:adopt_currency(asset, parsed.currency)
+        else
+          if asset.source == "yahoo" then
+            self:adopt_currency(asset, parsed.currency)
+          end
+          if interval.keep_hours and asset.source == "eastmoney" then
+            local kept = keep_recent_hours(parsed.candles, interval.keep_hours)
+            if #kept < 1 then
+              parsed, perr = nil, "no candles"
+              history_error = "parse no candles"
+            elseif #kept < #parsed.candles then
+              parsed = summarize(kept, { currency = parsed.currency, prev_close = parsed.prev_close,
+                current_price = parsed.current_price, name = parsed.name })
+            end
+          end
         end
       else
         history_error = tostring(err or ("http " .. tostring(code)))
@@ -2441,12 +2501,28 @@ function Backend.new(opts)
   end
 
   -- 切换周期，delta 用于实体按键。
+  -- Intervals offered for the current asset (currency pairs have no intraday range).
+  function self:available_intervals()
+    if self:current_asset().group == "fx" then
+      local list = {}
+      for i = 1, #self.intervals do
+        if self.intervals[i].fx_days then list[#list + 1] = self.intervals[i] end
+      end
+      return list
+    end
+    return self.intervals
+  end
+
   function self:select_interval_delta(delta)
-    local _, idx = find_interval(self.settings.interval)
+    local list = self:available_intervals()
+    local idx = 1
+    for i = 1, #list do
+      if list[i].label == self.settings.interval then idx = i break end
+    end
     idx = idx + (tonumber(delta) or 1)
-    if idx < 1 then idx = #self.intervals end
-    if idx > #self.intervals then idx = 1 end
-    self:apply_settings({ interval = self.intervals[idx].label }, true)
+    if idx < 1 then idx = #list end
+    if idx > #list then idx = 1 end
+    self:apply_settings({ interval = list[idx].label }, true)
   end
 
   -- 切换图表模式，按键长按和 Web 选择共用。
@@ -2592,6 +2668,21 @@ function Backend.new(opts)
       if not params.mode then self.settings.mode = self.settings.stock_mode or "line" end
       if not params.ma and not params.ma_period then self.settings.ma_period = self.settings.stock_ma_period or 0 end
     end
+    do
+      local now_group = self:current_asset().group
+      if now_group == "fx" and not find_interval(self.settings.interval).fx_days then
+        -- Currency pairs have no intraday range: remember the stock interval.
+        self.settings.stock_interval = self.settings.interval
+        self.settings.interval = "1w"
+        data_changed = true
+        settings_changed = true
+      elseif previous_group == "fx" and now_group ~= "fx" and self.settings.stock_interval and not params.interval then
+        self.settings.interval = find_interval(self.settings.stock_interval).label
+        self.settings.stock_interval = nil
+        data_changed = true
+        settings_changed = true
+      end
+    end
     if self:current_asset().group == "fx" then
       if self.settings.mode ~= "line" then
         self.settings.mode = "line"
@@ -2642,10 +2733,11 @@ function Backend.new(opts)
     end
 
     local intervals = {}
-    for i = 1, #self.intervals do
+    local offered = self:available_intervals()
+    for i = 1, #offered do
       intervals[#intervals + 1] = {
-        label = self.intervals[i].label,
-        fx_label = self.intervals[i].fx_label,
+        label = offered[i].label,
+        fx_label = offered[i].fx_label,
       }
     end
 
@@ -2659,8 +2751,9 @@ function Backend.new(opts)
     local display_min = nil
     local display_max = nil
     local start_i = 1
-    if #s.candles > DEFAULT_LIMIT then
-      start_i = #s.candles - DEFAULT_LIMIT + 1
+    local display_limit = interval.display_limit or DEFAULT_LIMIT
+    if #s.candles > display_limit then
+      start_i = #s.candles - display_limit + 1
     end
     for i = start_i, #s.candles do
       local c = s.candles[i]
@@ -2715,7 +2808,7 @@ function Backend.new(opts)
       settings = {
         asset = asset.id,
         interval = interval.label,
-        interval_text = asset.group == "fx" and (interval.fx_label or interval.label) or interval.label,
+        interval_text = asset.group == "fx" and (interval.fx_label or interval.label) or (INTERVAL_SHORT[interval.label] or interval.label),
         mode = self.settings.mode,
         currency = target_currency,
         ma = self.settings.ma_period > 0 and tostring(self.settings.ma_period) or "off",
